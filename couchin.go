@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"strings"
+	"errors"
 )
 
 func Partition(list []string, size int, f func([]string)) {
@@ -26,19 +27,24 @@ func Decode(val string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(val)
 }
 
+func GetDoc(key string, client *redis.Client) (string, error) {
+	if key[0:1] == "_" { return "", errors.New("reserved key: " + key) }
+	get := client.Get(key)
+	if get.Err() != nil { return "", get.Err() }
+	doc, err := Decode(get.Val())
+	if err != nil { return "", err }
+	return string(doc), nil
+}
+
 func GetDocs(keys []string, client *redis.Client) []string {
 	docs := make([]string, len(keys))
 	for i, key := range keys {
-		get := client.Get(key)
-		if get.Err() != nil {
-			log.Fatal(get.Err())
+		doc, err := GetDoc(key, client)
+		if err == nil {
+			docs[i] = doc
 		} else {
-			doc, err := Decode(get.Val())
-			if err != nil {
-				log.Fatal(err)
-			} else {
-				docs[i] = string(doc)
-			}
+			log.Print("Err: ")
+			log.Println(err)
 		}
 	}
 	return docs
