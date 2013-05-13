@@ -13,5 +13,6 @@ couchin --save-url http://admin:@localhost:5984/db/_bulk_docs
 ```
 git clone git@github.com:lancecarlson/couchin.go.git
 cd couchin.go
+go get github.com/vmihailenco/redis # Required dependency
 go build -o couchin # Builds a binary file for you. Put this in one of your PATH directories
 ```
