@@ -29,3 +29,7 @@ cd couchin.go
 go get github.com/vmihailenco/redis # Required dependency
 go build -o couchin # Builds a binary file for you. Put this in one of your PATH directories
 ```
+
+# Why?
+
+See [couchout](https://github.com/lancecarlson/couchout.go#why) readme
