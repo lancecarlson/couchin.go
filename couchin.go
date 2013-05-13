@@ -1,15 +1,15 @@
 package main
 
 import (
+	"os"
 	"log"
-//	"fmt"
+	"fmt"
 	"io/ioutil"
 	"flag"
 	"github.com/vmihailenco/redis"
 	"encoding/base64"
 	"net/http"
 	"strings"
-//	"time"
 )
 
 func Partition(list []string, size int, f func([]string)) {
@@ -89,6 +89,12 @@ func main() {
 	printResults := flag.Bool("print-results", false, "output the result of each bulk request")
 	printStatus := flag.Bool("print-status", false, "output the result the status of workers")
 	flush := flag.Bool("flush", false, "flush Redis after finished")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s [options] [save url]:\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
 
 	saveUrl := flag.Arg(0)
