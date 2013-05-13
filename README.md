@@ -5,7 +5,20 @@ This will read all the keys in a Redis database, grab each value as a Base64 enc
 See the sister project [couchout](https://github.com/lancecarlson/couchout.go) for getting couchdb documents into Redis. 
 
 ```
-couchin --save-url http://localhost:5984/db/_bulk_docs
+couchin http://localhost:5984/db/_bulk_docs
+```
+
+Default Options:
+
+```
+  -db=0: select the Redis db integer
+  -flush=false: flush Redis after finished
+  -host="localhost:6379": host for Redis
+  -password="": password for Redis
+  -print-results=false: output the result of each bulk request
+  -print-status=false: output the result the status of workers
+  -save-limit=100: number of docs to save at once
+  -workers=20: number of workers to batch save
 ```
 
 # Install 
