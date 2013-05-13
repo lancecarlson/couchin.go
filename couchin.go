@@ -51,25 +51,30 @@ func SaveDocs(docs []string, saveUrl string) (*http.Response, error) {
 	return http.Post(saveUrl, "application/json", strings.NewReader(body))
 }
 
-func Work(keys []string, client *redis.Client, saveUrl *string) (string, error) {
+func Work(keys []string, client *redis.Client, saveUrl string) (string, error) {
 	docs := GetDocs(keys, client)
-	resp, err := SaveDocs(docs, *saveUrl)
+	resp, err := SaveDocs(docs, saveUrl)
 	if err != nil { return "", err }
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil { return "", err }
 	return string(body), nil
 }
 
-func Worker(id int, client *redis.Client, saveUrl *string, jobs <- chan []string, results chan<- string) {
+func Worker(id int, client *redis.Client, saveUrl string, printResults *bool, printStatus *bool, jobs <- chan []string, results chan<- string) {
 	for j := range jobs {
-		log.Println("worker", id, "processing job")
-		log.Println(len(j))
+		if *printStatus {
+			log.Println("worker", id, "processing job")
+			log.Println(len(j))
+		}
+
 		body, err := Work(j, client, saveUrl)
 		if err != nil {
 			log.Println(err)
 			results <- ""
 		} else {
-			log.Println(body)
+			if *printResults {
+				log.Println(body)
+			}
 			results <- body
 		}
 	}
@@ -79,11 +84,23 @@ func main() {
 	password := flag.String("password", "", "password for Redis")
 	host := flag.String("host", "localhost:6379", "host for Redis")
 	db := flag.Int64("db", 0, "select the Redis db integer")
-	saveUrl := flag.String("save-url", "", "bulk save url. ie: http://localhost:5984/db/_bulk_docs")
-	saveLimit := flag.Int("save-limit", 1000, "number of docs to save at once")
-	workerCount := flag.Int("workers", 20, "number of works to batch save")
+	saveLimit := flag.Int("save-limit", 100, "number of docs to save at once")
+	workerCount := flag.Int("workers", 20, "number of workers to batch save")
+	printResults := flag.Bool("print-results", false, "output the result of each bulk request")
+	printStatus := flag.Bool("print-status", false, "output the result the status of workers")
 	flush := flag.Bool("flush", false, "flush Redis after finished")
 	flag.Parse()
+
+	saveUrl := flag.Arg(0)
+	if saveUrl == "" {
+		flag.Usage()
+		log.Fatal("mising bulk save url as first argument. ie: http://localhost:5984/db/_bulk_docs")
+	}
+
+	log.Println("Save Limit: ", *saveLimit)
+	log.Println("Worker Count: ", *workerCount)
+	log.Println("Flush: ", *flush)
+
 	client := redis.NewTCPClient(*host, *password, *db)
 	defer client.Close()
 	
@@ -101,7 +118,7 @@ func main() {
 		results := make(chan string, jobCount)
 
 		for w := 1; w <= *workerCount; w++ {
-			go Worker(w, client, saveUrl, jobs, results)
+			go Worker(w, client, saveUrl, printResults, printStatus, jobs, results)
 		}
 
 		Partition(keys.Val(), *saveLimit, func(keys []string) {
