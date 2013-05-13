@@ -24,7 +24,7 @@ Default Options:
 # Install 
 
 ```
-git clone git@github.com:lancecarlson/couchin.go.git
+git clone https://github.com/lancecarlson/couchin.go
 cd couchin.go
 go get github.com/vmihailenco/redis # Required dependency
 go build -o couchin # Builds a binary file for you. Put this in one of your PATH directories
