@@ -95,7 +95,7 @@ func Worker(id int, client *redis.Client, saveUrl string, printResults *string, 
 				}
 			} else if *printResults == "error" {
 				for _, resp := range body {
-					if resp.Error != "" {
+					if !resp.Ok {
 						fmt.Println(resp)
 					}
 				}
@@ -166,5 +166,7 @@ func main() {
 			log.Println("Flushing...")
 			client.FlushDb()
 		}
+
+		log.Println("Done.")
 	}
 }
