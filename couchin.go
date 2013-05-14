@@ -8,6 +8,7 @@ import (
 	"flag"
 	"github.com/vmihailenco/redis"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"errors"
@@ -57,16 +58,26 @@ func SaveDocs(docs []string, saveUrl string) (*http.Response, error) {
 	return http.Post(saveUrl, "application/json", strings.NewReader(body))
 }
 
-func Work(keys []string, client *redis.Client, saveUrl string) (string, error) {
-	docs := GetDocs(keys, client)
-	resp, err := SaveDocs(docs, saveUrl)
-	if err != nil { return "", err }
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil { return "", err }
-	return string(body), nil
+type Response struct {
+	Ok bool
+	Id string
+	Rev string
+	Error string
+	Reason string
 }
 
-func Worker(id int, client *redis.Client, saveUrl string, printResults *bool, printStatus *bool, jobs <- chan []string, results chan<- string) {
+func Work(keys []string, client *redis.Client, saveUrl string) (docResps []Response, err error) {
+	docs := GetDocs(keys, client)
+	resp, err := SaveDocs(docs, saveUrl)
+	if err != nil { return nil, err }
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil { return nil, err }
+	err = json.Unmarshal(body, &docResps)
+	if err != nil { return nil, err }
+	return docResps, nil
+}
+
+func Worker(id int, client *redis.Client, saveUrl string, printResults *string, printStatus *bool, jobs <- chan []string, results chan<- []Response) {
 	for j := range jobs {
 		if *printStatus {
 			log.Println("worker", id, "processing job")
@@ -76,10 +87,18 @@ func Worker(id int, client *redis.Client, saveUrl string, printResults *bool, pr
 		body, err := Work(j, client, saveUrl)
 		if err != nil {
 			log.Println(err)
-			results <- ""
+			results <- []Response{}
 		} else {
-			if *printResults {
-				log.Println(body)
+			if *printResults == "all" {
+				for _, resp := range body {
+					fmt.Println(resp)
+				}
+			} else if *printResults == "error" {
+				for _, resp := range body {
+					if resp.Error != "" {
+						fmt.Println(resp)
+					}
+				}
 			}
 			results <- body
 		}
@@ -92,9 +111,9 @@ func main() {
 	db := flag.Int64("db", 0, "select the Redis db integer")
 	saveLimit := flag.Int("save-limit", 100, "number of docs to save at once")
 	workerCount := flag.Int("workers", 20, "number of workers to batch save")
-	printResults := flag.Bool("print-results", false, "output the result of each bulk request")
+	printResults := flag.String("print-results", "", "output the result of each bulk request. (all|error)")
 	printStatus := flag.Bool("print-status", false, "output the result the status of workers")
-	flush := flag.Bool("flush", false, "flush Redis after finished")
+	flush := flag.Bool("flush", true, "flush Redis after finished")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s [options] [save url]:\n", os.Args[0])
@@ -127,7 +146,7 @@ func main() {
 			log.Fatal("No Keys")
 		}
 		jobs := make(chan []string, jobCount)
-		results := make(chan string, jobCount)
+		results := make(chan []Response, jobCount)
 
 		for w := 1; w <= *workerCount; w++ {
 			go Worker(w, client, saveUrl, printResults, printStatus, jobs, results)
