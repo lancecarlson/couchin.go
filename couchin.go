@@ -66,15 +66,15 @@ type Response struct {
 	Reason string
 }
 
-func Work(keys []string, client *redis.Client, saveUrl string) (docResps []Response, err error) {
+func Work(keys []string, client *redis.Client, saveUrl string) (body []byte, docResps []Response, err error) {
 	docs := GetDocs(keys, client)
 	resp, err := SaveDocs(docs, saveUrl)
-	if err != nil { return nil, err }
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil { return nil, err }
+	if err != nil { return nil, nil, err }
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil { return nil, nil, err }
 	err = json.Unmarshal(body, &docResps)
-	if err != nil { return nil, err }
-	return docResps, nil
+	if err != nil { return nil, nil, err }
+	return body, docResps, nil
 }
 
 func Worker(id int, client *redis.Client, saveUrl string, printResults *string, printStatus *bool, jobs <- chan []string, results chan<- []Response) {
@@ -84,7 +84,7 @@ func Worker(id int, client *redis.Client, saveUrl string, printResults *string, 
 			log.Println(len(j))
 		}
 
-		body, err := Work(j, client, saveUrl)
+		rawResp, body, err := Work(j, client, saveUrl)
 		if err != nil {
 			log.Println(err)
 			results <- []Response{}
@@ -99,6 +99,8 @@ func Worker(id int, client *redis.Client, saveUrl string, printResults *string, 
 						fmt.Println(resp)
 					}
 				}
+			} else if *printResults == "raw" {
+				fmt.Println(string(rawResp))
 			}
 			results <- body
 		}
@@ -111,7 +113,7 @@ func main() {
 	db := flag.Int64("db", 0, "select the Redis db integer")
 	saveLimit := flag.Int("save-limit", 100, "number of docs to save at once")
 	workerCount := flag.Int("workers", 20, "number of workers to batch save")
-	printResults := flag.String("print-results", "", "output the result of each bulk request. (all|error)")
+	printResults := flag.String("print-results", "", "output the result of each bulk request. (all|error|raw)")
 	printStatus := flag.Bool("print-status", false, "output the result the status of workers")
 	flush := flag.Bool("flush", true, "flush Redis after finished")
 
